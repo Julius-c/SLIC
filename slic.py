@@ -19,7 +19,7 @@ class SLIC:
 		self.MAX = 1e9
 		self.iterations = 10
 
-		self.clusters = -1 * np.ones(self.image.shape[:2])
+		self.labels = -1 * np.ones(self.image.shape[:2])
 		self.distances = self.MAX * np.ones(self.image.shape[:2])
 
 	def findLowestGrad(self, center):
@@ -28,12 +28,12 @@ class SLIC:
 		for i in xrange(center[0] - 1, center[0] + 2):
 			for j in xrange(center[1] - 1, center[1] + 2):
 				l1 = self.rgb2lab[j, i][0]
-	        	l2 = self.rgb2lab[j, i + 1][0]
-	        	l3 = self.rgb2lab[j + 1, i][0]
-	        	curGrad = (l1 - l2 if l1 > l2 else l2 - l1) + (l1 - l3 if l1 > l3 else l3 - l1)
-	        	if (curGrad < lowGrad):
-	        		lowGrad = curGrad
-	        		localMin = [i, j]
+				l2 = self.rgb2lab[j, i + 1][0]
+				l3 = self.rgb2lab[j + 1, i][0]
+				curGrad = (l1 - l2 if l1 > l2 else l2 - l1) + (l1 - l3 if l1 > l3 else l3 - l1)
+				if (curGrad < lowGrad):
+					lowGrad = curGrad
+					localMin = [i, j]
 		return localMin
 
 	def computeDist(self, index, point):
@@ -65,48 +65,87 @@ class SLIC:
 						if (m >= 0 and m < self.width and n >= 0 and n < self.height):
 							point = [m, n]
 							dist = self.computeDist(j, point)
-							if (dist < self.distances[n][m]):
+							if (dist < self.distances[n, m]):
 								self.distances[n, m] = dist
-								self.clusters[n, m] = j
+								self.labels[n, m] = j
 			# update center
 			for j in xrange(len(self.centers)):
-				jcluster = self.clusters == j
+				jcluster = self.labels == j
 				self.centers[j][0:3] = np.sum(self.rgb2lab[jcluster], axis=0)
 				sumy, sumx = np.sum(coordinate[jcluster], axis=0)
 				self.centers[j][3:] = sumx, sumy
 				self.centers[j] /= np.sum(jcluster)
 
+	def enforceLabelConnectivity(self):
+		label = 0
+		adjlabel = 0
+		new_labels = -1 * np.ones(self.image.shape[:2])
+		ideal = self.width * self.height / len(self.centers)
+		# left up right down
+		dx4 = [-1, 0, 1, 0]
+		dy4 = [0, -1, 0, 1]
+		for j in xrange(self.height):
+			for i in xrange(self.width):
+				if new_labels[j, i] == -1:
+					members = [(j, i)]
+					for dx, dy in zip(dx4, dy4):
+						x = i + dx
+						y = j + dy
+						if (x >= 0 and x < self.width and \
+							y >= 0 and y < self.height and \
+							new_labels[y, x] >= 0):
+							adjlabel = new_labels[y, x]
+					count = 1
+					c = 0
+					while c < count:
+						for dx, dy in zip(dx4, dy4):
+							x = members[c][1] + dx
+							y = members[c][0] + dy
+							if (x >= 0 and x < self.width and y >= 0 and y < self.height):
+								if (new_labels[y, x] == -1 and self.labels[y, x] == self.labels[j, i]):
+									members.append((y, x))
+									new_labels[y, x] = label
+									count += 1
+						c += 1
+					if (count <= ideal >> 2):
+						for c in xrange(count):
+							new_labels[members[c]] = adjlabel
+						label -= 1
+					label += 1
+		self.labels = new_labels
+
 	def displayContour(self, color):
 		# 3 * 3 square
-	    dx8 = [-1, -1, 0, 1, 1, 1, 0, -1]
-	    dy8 = [0, -1, -1, -1, 0, 1, 1, 1]
+		dx8 = [-1, -1, 0, 1, 1, 1, 0, -1]
+		dy8 = [0, -1, -1, -1, 0, 1, 1, 1]
 
-	    isTaken = np.zeros(self.image.shape[:2], np.bool)
-	    contours = []
+		isTaken = np.zeros(self.image.shape[:2], np.bool)
+		contours = []
 
-	    for i in xrange(self.width):
-	        for j in xrange(self.height):
-	            count = 0
-	            for dx, dy in zip(dx8, dy8):
-	                x = i + dx
-	                y = j + dy
-	                if x >= 0 and x < self.width and y >= 0 and y < self.height:
-	                    if isTaken[y, x] == False and self.clusters[j, i] != self.clusters[y, x]:
-	                        count += 1
+		for i in xrange(self.width):
+		    for j in xrange(self.height):
+		        count = 0
+		        for dx, dy in zip(dx8, dy8):
+		            x = i + dx
+		            y = j + dy
+		            if x >= 0 and x < self.width and y >= 0 and y < self.height:
+		                if isTaken[y, x] == False and self.labels[j, i] != self.labels[y, x]:
+		                    count += 1
 
-	            if count >= 2:
-	                isTaken[j, i] = True
-	                contours.append([j, i])
+		        if count >= 2:
+		            isTaken[j, i] = True
+		            contours.append([j, i])
 
-	    for i in xrange(len(contours)):
-	        self.image[contours[i][0], contours[i][1]] = color
+		for i in xrange(len(contours)):
+		    self.image[contours[i][0], contours[i][1]] = color
 
 	def run(self):
 		self.initialize()
 		self.generateSuperPixels()
+		self.enforceLabelConnectivity()
 		self.displayContour((0, 0, 255))
-		cv2.imshow("SLIC", self.image)
-		cv2.waitKey(0)
+		cv2.imwrite("slic.jpg", self.image)
+
 
 image = cv2.imread(sys.argv[1])
 superpixels = int(sys.argv[2])

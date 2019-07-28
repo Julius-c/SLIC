@@ -8,7 +8,7 @@
 
 超像素分割即将一副像素级的输入图片, 分割成区域级的图, 是对基本信息元素进行的抽象.
 
-$SLIC$**简单线性迭代聚类**算法是一种采用$k$均值算法生成超像素的算法, 其有以下特点:
+$SLIC​$**简单线性迭代聚类**算法是一种采用$k​$均值算法生成超像素的算法, 其有以下特点:
 
 1. 将搜索空间限制为与超像素大小成比例的区域, 显著地减少了迭代中的距离计算的数量
 2. 组合颜色距离与空间距离加权计算样本与聚类中心的距离
@@ -22,7 +22,7 @@ $SLIC$**简单线性迭代聚类**算法是一种采用$k$均值算法生成超�
 
    1. 根据图像大小及预想分割的超像素数计算簇中心的步长$S​$, 亦即簇内最大空间距离$N_s​$
 
-      $$S = N_c = \sqrt{(ImageHeight * ImageWidth / k)}​$$
+      $$S = N_s = \sqrt{(ImageHeight * ImageWidth / k)}​$$
 
    2. 将图像从$RGB$空间转化到$LAB$空间, 每个像素点对应一个五维向量$[l, a, b, x, y]$
 
@@ -38,7 +38,7 @@ $SLIC$**简单线性迭代聚类**算法是一种采用$k$均值算法生成超�
 
          颜色距离为$d_c=\sqrt{(l_j-l_i)^2+(a_j-a_i)^2+(b_j-b_i)^2}​$
 
-         空间距离为$d_s=\sqrt{(x_j-x_i)^2+(y_j-y_i)^2}$
+         空间距离为$d_s=\sqrt{(x_j-x_i)^2+(y_j-y_i)^2}​$
 
          根据$N_c, N_s$正则化距离为$distance = \sqrt{(\frac{d_c}{N_c})^2+(\frac{d_s}{N_s})^2}​$
 
@@ -87,9 +87,62 @@ $k = 400, N_c = 40​$
   </table>
 </div>
 
+
 1. 在没有后处理的结果图中, 有一些孤立的较小的超像素.
 2. 最大颜色距离$N_c​$较大时, 空间邻近性更重要. 反之若取$N_c = 10​$, 则颜色邻近性更重要.
 
-### <center>运行方式</center>
+### <center>算法扩展</center>
 
-`python slic.py IMAGE SUPERPIXELS NC`
+#### 目标
+
+对于给定的$3D$图像, 生成给定数量的超体素($supervoxel$).
+
+#### 如何获得3D图像
+
+1. 将一副$2D$图像在$z$方向进行重复堆叠
+2. $CT$医学图像, $DICOM$数据库, 如斯坦福大学体数据库(<http://graphics.stanford.edu/data/voldata/>)
+
+#### 与原算法区别
+
+1. $S = N_s = \sqrt[3]{ImageDepth\times ImageHeight\times ImageWidth / k}$
+2. 每个像素点对应六维向量$[l, a, b, z, y, x]$
+3. 初始簇中心调整至$3\times 3\times3$邻域内梯度最小点
+4. 在簇中心$2S \times 2S\times 2S$邻域内的点计算距离
+5. 空间距离$d_s=\sqrt{(x_j-x_i)^2+(y_j-y_i)^2+(z_j-z_i)^2}$
+
+#### 运行效果
+
+$5 \times 240 \times 320​$
+
+<div align="middle">
+  <table style="width=100%">
+	  <tr>
+        <td>
+    	  <img src="images/dog.png" align="middle" width="400px"/>
+    		<figcaption align="middle">Input</figcaption>
+  		</td>
+  		<td>
+    	  <img src="images/l1.jpg" align="middle" width="400px"/>
+    		<figcaption align="middle">depth 0</figcaption>
+  		</td>
+  		<td>
+    	  <img src="images/l2.jpg" align="middle" width="400px"/>
+    		<figcaption align="middle">depth 1</figcaption>
+  		</td>
+	  </tr>
+      <tr>
+  		<td>
+    	  <img src="images/l3.jpg" align="middle" width="400px"/>
+    		<figcaption align="middle">depth 2</figcaption>
+  		</td>
+  		<td>
+    	  <img src="images/l4.jpg" align="middle" width="400px"/>
+    		<figcaption align="middle">depth 3</figcaption>
+  		</td>
+        <td>
+    	  <img src="images/l5.jpg" align="middle" width="400px"/>
+    		<figcaption align="middle">depth 4</figcaption>
+  		</td>
+	  </tr>
+  </table>
+</div>
